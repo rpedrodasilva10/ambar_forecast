@@ -10,7 +10,7 @@ para consumo externo (API RESTful)
 # Design
     Aplicação -> API REST -> WebService -> API Previsão do Tempo (Climatempo) -> Database
 
-![Design](./static/img/Design.png)
+![Design](/static/img/Design.png)
 
 # Regras de negócio
 
