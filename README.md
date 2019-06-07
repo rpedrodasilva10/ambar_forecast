@@ -24,7 +24,7 @@ para consumo externo (API RESTful)
 
     http://apiadvisor.climatempo.com.br/api/v1/forecast/locale/<ID_DA_CIDADE>/days/15?token=<TOKEN>
 
-    O token a ser utilizado é o   <u>b22460a8b91ac5f1d48f5b7029891b53</u>
+    O token a ser utilizado é o   <i>b22460a8b91ac5f1d48f5b7029891b53</i>
 
 
 
