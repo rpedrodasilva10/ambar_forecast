@@ -160,6 +160,9 @@ class CidadeAPI(Resource):
                 country = js['country']
                 data = js['data']  # É uma lista
 
+                # Para exibir os objetos inseridos
+                objs = []
+               # print(data)
                 for element in data:
                     date_time_obj = datetime.datetime.strptime(
                         element['date'], '%Y-%m-%d')
@@ -169,10 +172,12 @@ class CidadeAPI(Resource):
                     min_temp = element['temperature']['min']
                     resposta = Resposta(name=name, state=state, city=city, country=country, date=date_time_obj.date(),
                                         rain_prec=rain_prec, rain_prob=rain_prob, max_temp=max_temp, min_temp=min_temp)
-                    db.session.add(resposta)
 
-                db.session.commit()
-                return {'mensagem': 'Sucesso'}, 201
+                    db.session.add(resposta)
+                    db.session.commit()  # Devo comitar para gerar o ID
+                    objs.append(resposta_schema.dump(resposta).data)
+
+                return {'mensagem': 'Sucesso. Dados inseridos', 'dados': objs}, 201
             else:
                 return {'mensagem': 'Falha na requisição'}, res.status_code
         else:
