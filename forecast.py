@@ -1,5 +1,4 @@
 from flask import Flask, g, jsonify, request
-
 from flask_marshmallow import Marshmallow
 from flask_sqlalchemy import SQLAlchemy
 from flask_restful import Api, Resource
@@ -18,8 +17,13 @@ api = Api(app)
 
 # Configurações
 app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///fcast.db'
+app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 db = SQLAlchemy(app)  # DB
 ma = Marshmallow(app)  # Marshmallow
+
+# Caso não exista, crio bd.
+if not os.path.isfile('fcast.db'):
+    db.create_all()
 
 
 # Models/Classes
@@ -46,13 +50,13 @@ resposta_schema = RespostaSchema()
 respostas_schema = RespostaSchema(many=True)
 
 
-class Forecast(Resource):
-    """Forecast lê o banco de dados"""
+class ForecastAPI(Resource):
+    """ForecastAPI lê o banco de dados"""
 
     # Códigos de ERRO e mensagens
     erros = {
-        1: "Data inicial deve ser maior ou igual que a data final.",
-        2: "Datas devem ser passadas no formato AAAA-MM-DD."
+        1: "Data inicial deve ser menor ou igual que a data final.",
+        2: "Data inválida. Datas devem ser passadas no formato AAAA-MM-DD (Dias: entre 01 e 28/30/31 de acordo com o mês. Meses: entre 01 e 12)."
     }
 
     def date_is_valid(self, date, mask='%Y-%m-%d'):
@@ -66,7 +70,6 @@ class Forecast(Resource):
 
     def validate(self, data_inicial, data_final):
         """Checa se as datas recebidas estão dentro do formato (AAAA-MM-DD) e range (inicial <= final) válidos."""
-        """ TODO - Validar datas REAIS """
         err_n = 0
         if self.date_is_valid(data_inicial) and self.date_is_valid(data_final):
             if data_inicial > data_final:
@@ -105,68 +108,86 @@ class Forecast(Resource):
         data_inicial = request.args.get('data_inicial')
         data_final = request.args.get('data_final')
 
-        continua, err_n = self.validate(data_inicial, data_final)
-        if continua and err_n == 0:
+        ok, err_n = self.validate(data_inicial, data_final)
+        if ok and err_n == 0:
             filtro_ini = datetime.datetime.strptime(
                 data_inicial, '%Y-%m-%d')
             filtro_fim = datetime.datetime.strptime(
                 data_final, '%Y-%m-%d')
         else:
-            return {'mensagem': self.erros[err_n], 'data': [data_inicial, data_final]}, 400
+            return {'mensagem': self.erros[err_n], 'dados': {"data_inicial": data_inicial, "data_final": data_final}}, 400
 
         # Cidade com maior temperatura máxima.
         max_temp_data = self.get_max_temp(filtro_ini, filtro_fim)
         # Média de precipitação por cidade.
         avg_preci_data = self.get_avg_precipitation(filtro_ini, filtro_fim)
 
-        return {'mensagem': 'Sucesso', 'data': {'max_temp_data': max_temp_data.data, 'avg_preci_data': avg_preci_data.data}}, 200
-
-    def save(self):
-        pass
+        return {'mensagem': 'Sucesso', 'dados': {'max_temp_data': max_temp_data.data, 'avg_preci_data': avg_preci_data.data}}, 200
 
 
-"""TODO Criar método que busca cidade (consome api) e grava dados no banco"""
-@app.route('/cidade')
-def get_forecast():
-    """Recebe uma cidade (ID) consome API e persiste informações sobre o clima no banco de dados"""
-    params = {'token': TOKEN}
-    city_id = str(request.args.get('id', None))
-    res = requests.get('http://apiadvisor.climatempo.com.br/api/v1/forecast/locale/' +
-                       city_id + '/days/15', params=params)
-    if res.status_code == 200:
-        js = res.json()
-        name = js['name']
-        state = js['state']
-        city = js['id']
-        country = js['country']
-        data = js['data']  # É uma lista
+class CidadeAPI(Resource):
+    def get(self):
+        """Busca as cidades por nome e/ou estado"""
+        params = (
+            ('name', request.args.get('name', None)),
+            ('state', request.args.get('state', None)),
+            ('token', TOKEN),
+        )
+        # API ClimaTempo
+        res = requests.get(
+            'http://apiadvisor.climatempo.com.br/api/v1/locale/city', params=params)
 
-        for element in data:
-            date_time_obj = datetime.datetime.strptime(
-                element['date'], '%Y-%m-%d')
-            rain_prob = element['rain']['probability']
-            rain_prec = element['rain']['precipitation']
-            max_temp = element['temperature']['max']
-            min_temp = element['temperature']['min']
-            resposta = Resposta(name=name, state=state, city=city, country=country, date=date_time_obj.date(),
-                                rain_prec=rain_prec, rain_prob=rain_prob, max_temp=max_temp, min_temp=min_temp)
-            db.session.add(resposta)
+        print(res.status_code)
+        if res.status_code == 200:
+            return {'mensagem': 'Sucesso', 'dados': res.json()}, res.status_code
+        else:
+            return {'mensagem': 'Falha', 'dados': []}, res.status_code
 
-        db.session.commit()
-        return jsonify({'message': 'success'}), res.status_code
-    else:
-        return jsonify({'message': 'not found'}), res.status_code
+    def post(self):
+        """Recebe uma cidade (ID) consome API e persiste informações sobre o clima no banco de dados"""
+        params = {'token': TOKEN}
+        city_id = str(request.args.get('id', None))
+
+        if not (city_id == 'None'):
+            res = requests.get('http://apiadvisor.climatempo.com.br/api/v1/forecast/locale/' +
+                               city_id + '/days/15', params=params)
+            # Em caso de sucesso na requisição, sigo com a inserção dos itens na base.
+            if res.status_code == 200:
+                js = res.json()
+                name = js['name']
+                state = js['state']
+                city = js['id']
+                country = js['country']
+                data = js['data']  # É uma lista
+
+                for element in data:
+                    date_time_obj = datetime.datetime.strptime(
+                        element['date'], '%Y-%m-%d')
+                    rain_prob = element['rain']['probability']
+                    rain_prec = element['rain']['precipitation']
+                    max_temp = element['temperature']['max']
+                    min_temp = element['temperature']['min']
+                    resposta = Resposta(name=name, state=state, city=city, country=country, date=date_time_obj.date(),
+                                        rain_prec=rain_prec, rain_prob=rain_prob, max_temp=max_temp, min_temp=min_temp)
+                    db.session.add(resposta)
+
+                db.session.commit()
+                return {'mensagem': 'Sucesso'}, 201
+            else:
+                return {'mensagem': 'Falha na requisição'}, res.status_code
+        else:
+            return {'mensagem': "Argumento inválido, o 'ID' é obrigatório."}, 400
 
 
-@app.route("/", methods=['GET'])
+@app.route("/")
 def index():
+    """Apresenta a documentação do projeto."""
     with open("./README.md", 'r') as markdown_file:
         content = markdown_file.read()
-
     return markdown.markdown(content)
 
 
-api.add_resource(Forecast, '/analise/')
-
+api.add_resource(ForecastAPI, '/analise/')
+api.add_resource(CidadeAPI, '/cidade')
 if __name__ == '__main__':
     app.run(debug=True)
