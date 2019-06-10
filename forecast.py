@@ -213,9 +213,9 @@ class CidadeAPI(Resource):
 
                 return {'mensagem': 'Sucesso. Dados inseridos', 'dados': objs}, 201
             else:
-                return {'mensagem': 'Falha na requisição'}, res.status_code
+                return {'mensagem': 'Falha na requisição', 'dados': []}, res.status_code
         else:
-            return {'mensagem': "Argumento inválido, o 'ID' é obrigatório."}, 400
+            return {'mensagem': "Argumento inválido, o 'ID' é obrigatório.", 'dados': []}, 400
 
 
 @app.route("/readme")
