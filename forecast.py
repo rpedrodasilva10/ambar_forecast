@@ -1,11 +1,11 @@
-from flask import Flask, g, jsonify, request
+from flask import Flask, request
 from flask_marshmallow import Marshmallow
 from flask_sqlalchemy import SQLAlchemy
-from flask_restful import Api, Resource
+
+from flask_restplus import Api, Resource
 
 import requests
 import datetime
-import json
 import markdown
 import os
 
@@ -15,15 +15,14 @@ TOKEN = 'b22460a8b91ac5f1d48f5b7029891b53'
 app = Flask(__name__)
 api = Api(app)
 
+# Namespace e identificação swagger
+ns = api.namespace('forecast', description='Previsão do tempo')
+
 # Configurações
 app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///fcast.db'
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 db = SQLAlchemy(app)  # DB
 ma = Marshmallow(app)  # Marshmallow
-
-# Caso não exista, crio bd.
-if not os.path.isfile('fcast.db'):
-    db.create_all()
 
 
 # Models/Classes
@@ -49,7 +48,12 @@ class RespostaSchema(ma.ModelSchema):
 resposta_schema = RespostaSchema()
 respostas_schema = RespostaSchema(many=True)
 
+# Caso não exista, crio bd.
+if not os.path.isfile('fcast.db'):
+    db.create_all()
 
+
+@ns.route('/analise/')
 class ForecastAPI(Resource):
     """ForecastAPI lê o banco de dados"""
 
@@ -104,7 +108,17 @@ class ForecastAPI(Resource):
         rv = respostas_schema.dump(respostas)
         return rv
 
+    @api.doc(
+        responses={
+            404: 'Dados não encontrados.',
+            200: 'Sucesso.', 400: 'Parâmetro(s) inválido(s).'
+        },
+        params={
+            'data_inicial': 'Data inicial do período (AAAA-MM-DD).', 'data_final': 'Data final do período (AAAA-MM-DD).'
+        }
+    )
     def get(self):
+        """De acordo com as datas passadas, retorna cidade com maior temperatura máxima e média de precipitação por cidade"""
         data_inicial = request.args.get('data_inicial')
         data_final = request.args.get('data_final')
 
@@ -125,7 +139,18 @@ class ForecastAPI(Resource):
         return {'mensagem': 'Sucesso', 'dados': {'max_temp_data': max_temp_data.data, 'avg_preci_data': avg_preci_data.data}}, 200
 
 
+@ns.route("/cidade")
 class CidadeAPI(Resource):
+    @api.doc(
+        responses={
+            404: 'Dados não encontrados.',
+            200: 'Sucesso.'
+        },
+        params={
+            'name': 'Nome da cidade.',
+            'state': 'Sigla do estado.'
+        }
+    )
     def get(self):
         """Busca as cidades por nome e/ou estado"""
         params = (
@@ -137,12 +162,21 @@ class CidadeAPI(Resource):
         res = requests.get(
             'http://apiadvisor.climatempo.com.br/api/v1/locale/city', params=params)
 
-        print(res.status_code)
         if res.status_code == 200:
             return {'mensagem': 'Sucesso', 'dados': res.json()}, res.status_code
         else:
             return {'mensagem': 'Falha', 'dados': []}, res.status_code
 
+    @api.doc(
+        responses={
+            404: 'Dados não encontrados.',
+            201: 'Sucesso. Dados inseridos.',
+            400: 'Parâmetro(s) inválido(s).'
+        },
+        params={
+            'id': 'ID da cidade.',
+        }
+    )
     def post(self):
         """Recebe uma cidade (ID) consome API e persiste informações sobre o clima no banco de dados"""
         params = {'token': TOKEN}
@@ -162,7 +196,7 @@ class CidadeAPI(Resource):
 
                 # Para exibir os objetos inseridos
                 objs = []
-               # print(data)
+
                 for element in data:
                     date_time_obj = datetime.datetime.strptime(
                         element['date'], '%Y-%m-%d')
@@ -174,7 +208,7 @@ class CidadeAPI(Resource):
                                         rain_prec=rain_prec, rain_prob=rain_prob, max_temp=max_temp, min_temp=min_temp)
 
                     db.session.add(resposta)
-                    db.session.commit()  # Devo comitar para gerar o ID
+                    db.session.commit()  # Devo gravar para gerar o ID
                     objs.append(resposta_schema.dump(resposta).data)
 
                 return {'mensagem': 'Sucesso. Dados inseridos', 'dados': objs}, 201
@@ -184,15 +218,13 @@ class CidadeAPI(Resource):
             return {'mensagem': "Argumento inválido, o 'ID' é obrigatório."}, 400
 
 
-@app.route("/")
-def index():
+@app.route("/readme")
+def get_readme():
     """Apresenta a documentação do projeto."""
     with open("./README.md", 'r') as markdown_file:
         content = markdown_file.read()
     return markdown.markdown(content)
 
 
-api.add_resource(ForecastAPI, '/analise/')
-api.add_resource(CidadeAPI, '/cidade')
 if __name__ == '__main__':
     app.run(debug=True)
