@@ -23,14 +23,11 @@ ns = api.namespace('', description='Informações sobre previsão do tempo')
 
 # Configurações
 app.config.from_pyfile('config.py')
-# db = SQLAlchemy(app)  # DB
-# ma = Marshmallow(app)  # Marshmallow
+
+# DAO
 ForecastDAO = ForecastDAO()
 ForecastDAO.init_db(app)
 ForecastDAO.init_ma(app)
-
-# Models/Classes
-
 
 # Caso não exista, crio bd.
 with app.app_context():
