@@ -49,6 +49,7 @@ class ForecastAPI(Resource):
     }
 
     def date_is_valid(self, date, mask='%Y-%m-%d'):
+        """Verifica se a data passada está dentro da máscara passado(mask)"""
         rv = True
         # Inclusão do parâmetro mask para validar dinâmicamente ao formato desejado
         try:
@@ -80,8 +81,8 @@ class ForecastAPI(Resource):
         }
     )
     def get(self):
-        res = Resposta()
         """De acordo com as datas passadas, retorna cidade com maior temperatura máxima e média de precipitação por cidade"""
+        res = Resposta()  # Instancia resposta para uso dos métodos do modelo
         data_inicial = request.args.get('data_inicial')
         data_final = request.args.get('data_final')
 

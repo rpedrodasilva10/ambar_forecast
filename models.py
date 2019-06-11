@@ -2,6 +2,7 @@ from db import ForecastDAO
 
 
 class Resposta(ForecastDAO.db.Model):
+    """Abstrai a resposta obtida da API clima tempo, só os campos necessários ao teste"""
     __tablename__ = "resposta"
     id = ForecastDAO.db.Column(ForecastDAO.db.Integer, primary_key=True)
     name = ForecastDAO.db.Column(ForecastDAO.db.String(80), nullable=False)
