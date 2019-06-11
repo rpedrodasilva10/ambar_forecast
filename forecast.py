@@ -10,7 +10,8 @@ import markdown
 import os
 
 from db import ForecastDAO
-from models import Resposta
+from models import Resposta, resposta_schema
+
 TOKEN = 'b22460a8b91ac5f1d48f5b7029891b53'
 
 # Instancia Flask, API, Database e Marshmallow
@@ -18,12 +19,10 @@ app = Flask(__name__)
 api = Api(app)
 
 # Namespace e identificação swagger
-ns = api.namespace('forecast', description='Previsão do tempo')
+ns = api.namespace('', description='Informações sobre previsão do tempo')
 
 # Configurações
-app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///fcast.db'
-app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
-
+app.config.from_pyfile('config.py')
 # db = SQLAlchemy(app)  # DB
 # ma = Marshmallow(app)  # Marshmallow
 ForecastDAO = ForecastDAO()
