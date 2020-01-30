@@ -121,8 +121,7 @@ As respostas terão o padrão:
             "min_temp": 24,
             "rain_prec": 23,
             "name": "Calçoene"
-        },
-        ...
+        }
     ]
 }
 ```
@@ -161,8 +160,7 @@ As respostas terão o padrão:
                 "city": "7803",
                 "rain_prec": 17.25,
                 "country": "BR  "
-            },
-            ...
+            }
         ]
     }
 }
